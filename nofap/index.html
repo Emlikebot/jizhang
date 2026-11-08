@@ -1,0 +1,627 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>自律打卡</title>
+<meta name="description" content="戒色打卡：记录坚持天数、每日打卡、冲动急救与里程碑勋章。">
+<meta name="theme-color" content="#0f1115">
+<!-- iOS PWA -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="自律打卡">
+<meta name="format-detection" content="telephone=no">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+<link rel="manifest" href="manifest.webmanifest">
+<style>
+:root{
+  --bg:#0f1115; --card:#181b22; --card2:#20242d; --line:#2a2f3a;
+  --text:#eef0f4; --sub:#9aa1ad; --accent:#34d399; --accent2:#10b981;
+  --warn:#f87171; --gold:#fbbf24; --blue:#60a5fa;
+  --safe-top:env(safe-area-inset-top); --safe-bottom:env(safe-area-inset-bottom);
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--text);
+  font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC","Helvetica Neue",sans-serif;
+  -webkit-font-smoothing:antialiased;overscroll-behavior:none}
+body{-webkit-user-select:none;user-select:none}
+button{font:inherit;color:inherit;border:0;background:none;cursor:pointer}
+input,textarea,select{font:inherit;color:var(--text);-webkit-user-select:text;user-select:text}
+#app{min-height:100%;padding:calc(var(--safe-top) + 12px) 16px calc(var(--safe-bottom) + 92px);max-width:560px;margin:0 auto}
+.page{display:none;animation:fade .25s ease}
+.page.active{display:block}
+@keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+h1{font-size:28px;margin:6px 2px 14px;font-weight:700;letter-spacing:.5px}
+h2{font-size:17px;margin:0 0 12px;font-weight:600}
+.card{background:var(--card);border-radius:18px;padding:18px;margin-bottom:14px;border:1px solid var(--line)}
+.muted{color:var(--sub);font-size:13px}
+.row{display:flex;align-items:center;gap:10px}
+.between{justify-content:space-between}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+
+/* streak ring */
+.hero{text-align:center;padding:22px 18px 20px}
+.ring{position:relative;width:230px;height:230px;margin:6px auto 10px}
+.ring svg{transform:rotate(-90deg)}
+.ring .center{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.days{font-size:68px;font-weight:800;line-height:1;font-variant-numeric:tabular-nums}
+.days small{font-size:18px;font-weight:600;margin-left:4px;color:var(--sub)}
+.hms{font-size:17px;color:var(--sub);margin-top:8px;font-variant-numeric:tabular-nums;letter-spacing:1px}
+.next{font-size:13px;color:var(--sub);margin-top:6px}
+.btn{display:block;width:100%;padding:15px;border-radius:14px;font-size:17px;font-weight:600;text-align:center;transition:transform .1s,opacity .2s}
+.btn:active{transform:scale(.97)}
+.btn-primary{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#062b1f}
+.btn-primary[disabled]{background:var(--card2);color:var(--sub)}
+.btn-ghost{background:var(--card2)}
+.btn-danger{background:rgba(248,113,113,.14);color:var(--warn)}
+.btn-sm{padding:10px 14px;font-size:15px;border-radius:12px;display:inline-block;width:auto}
+.stat{background:var(--card2);border-radius:14px;padding:14px;text-align:center}
+.stat b{display:block;font-size:24px;font-variant-numeric:tabular-nums}
+.stat span{font-size:12px;color:var(--sub)}
+.quote{font-size:15px;line-height:1.7}
+.quote .by{display:block;text-align:right;color:var(--sub);font-size:13px;margin-top:6px}
+
+/* calendar */
+.cal-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.cal-head button{width:36px;height:36px;border-radius:10px;background:var(--card2);font-size:18px}
+.cal{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;text-align:center}
+.cal .wd{font-size:12px;color:var(--sub);padding:4px 0}
+.cal .d{aspect-ratio:1;border-radius:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:14px;background:var(--card2);position:relative}
+.cal .d.empty{background:none}
+.cal .d.ok{background:rgba(52,211,153,.22);color:var(--accent)}
+.cal .d.bad{background:rgba(248,113,113,.22);color:var(--warn)}
+.cal .d.today{outline:2px solid var(--blue);outline-offset:-2px}
+.cal .d.future{opacity:.35}
+.cal .d .m{font-size:11px;line-height:1}
+.legend{display:flex;gap:14px;margin-top:12px;font-size:12px;color:var(--sub)}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:-1px}
+
+/* list */
+.list .item{padding:12px 0;border-bottom:1px solid var(--line)}
+.list .item:last-child{border-bottom:0}
+.tag{display:inline-block;padding:2px 8px;border-radius:8px;font-size:12px;background:var(--card2);color:var(--sub);margin-right:6px}
+
+/* SOS */
+.breath{width:200px;height:200px;margin:10px auto 16px;position:relative;display:flex;align-items:center;justify-content:center}
+.breath .orb{position:absolute;width:100%;height:100%;border-radius:50%;
+  background:radial-gradient(circle at 35% 30%,#7dd3fc,#2563eb 70%);opacity:.85;transform:scale(.55);
+  transition:transform 4s ease-in-out;box-shadow:0 0 60px rgba(96,165,250,.35)}
+.breath .txt{position:relative;font-size:20px;font-weight:600;text-align:center}
+.breath .txt small{display:block;font-size:14px;font-weight:400;opacity:.85;margin-top:4px}
+.task{display:flex;align-items:center;gap:12px;padding:12px;border-radius:12px;background:var(--card2);margin-bottom:8px}
+.task .ck{width:24px;height:24px;border-radius:50%;border:2px solid var(--sub);flex:none;display:flex;align-items:center;justify-content:center;font-size:14px}
+.task.done .ck{background:var(--accent);border-color:var(--accent);color:#062b1f}
+.task.done .t{text-decoration:line-through;color:var(--sub)}
+
+/* badges */
+.badge{background:var(--card2);border-radius:14px;padding:12px 6px;text-align:center;opacity:.35;filter:grayscale(1)}
+.badge.on{opacity:1;filter:none;background:linear-gradient(160deg,rgba(251,191,36,.18),rgba(251,191,36,.04));border:1px solid rgba(251,191,36,.35)}
+.badge .e{font-size:30px}
+.badge .n{font-size:13px;font-weight:600;margin-top:4px}
+.badge .r{font-size:11px;color:var(--sub)}
+
+/* tab bar */
+.tabbar{position:fixed;left:0;right:0;bottom:0;display:flex;justify-content:space-around;
+  padding:8px 6px calc(var(--safe-bottom) + 6px);background:rgba(18,20,26,.86);
+  -webkit-backdrop-filter:blur(20px);backdrop-filter:blur(20px);border-top:1px solid var(--line);z-index:10}
+.tabbar button{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;font-size:11px;color:var(--sub);padding:4px 0}
+.tabbar button svg{width:25px;height:25px}
+.tabbar button.active{color:var(--accent)}
+.tabbar button.sos{color:#93c5fd}
+.tabbar button.sos.active{color:var(--blue)}
+
+/* sheet */
+.mask{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:20;display:none;align-items:flex-end;justify-content:center}
+.mask.show{display:flex;animation:fadeIn .2s}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+.sheet{width:100%;max-width:560px;background:var(--card);border-radius:22px 22px 0 0;padding:10px 18px calc(var(--safe-bottom) + 18px);
+  animation:up .28s cubic-bezier(.2,.8,.2,1);max-height:88vh;overflow:auto}
+@keyframes up{from{transform:translateY(100%)}to{transform:none}}
+.sheet .grab{width:38px;height:5px;border-radius:3px;background:var(--line);margin:0 auto 14px}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0 14px}
+.chip{padding:9px 14px;border-radius:999px;background:var(--card2);font-size:14px;border:1px solid transparent}
+.chip.on{border-color:var(--accent);color:var(--accent);background:rgba(52,211,153,.1)}
+.chips.red .chip.on{border-color:var(--warn);color:var(--warn);background:rgba(248,113,113,.1)}
+textarea,input[type=text],input[type=datetime-local]{width:100%;background:var(--card2);border:1px solid var(--line);border-radius:12px;padding:12px;font-size:16px;outline:none}
+textarea{min-height:80px;resize:none}
+label.l{display:block;font-size:13px;color:var(--sub);margin:4px 0 6px}
+.toast{position:fixed;left:50%;top:calc(var(--safe-top) + 14px);transform:translate(-50%,-30px);opacity:0;
+  background:rgba(32,36,45,.96);padding:11px 18px;border-radius:999px;font-size:14px;z-index:30;transition:.3s;pointer-events:none;border:1px solid var(--line);white-space:nowrap}
+.toast.show{transform:translate(-50%,0);opacity:1}
+.menu .mi{display:flex;justify-content:space-between;align-items:center;padding:15px 2px;border-bottom:1px solid var(--line);font-size:16px;width:100%;text-align:left}
+.menu .mi:last-of-type{border-bottom:0}
+.menu .mi span:last-child{color:var(--sub)}
+.install{display:none}
+.install.show{display:block}
+.confetti{position:fixed;inset:0;pointer-events:none;z-index:40}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- 首页 -->
+  <section class="page active" id="p-home">
+    <div class="row between"><h1>自律打卡</h1><span class="muted" id="todayStr"></span></div>
+
+    <div class="card install" id="installTip">
+      <div class="row between"><b>📲 添加到主屏幕</b><button class="muted" onclick="hideInstall()">✕</button></div>
+      <p class="muted" style="margin:8px 0 0;line-height:1.6">在 Safari 中点击底部 <b>分享</b> 按钮 → 选择 <b>“添加到主屏幕”</b>，即可像 App 一样全屏使用，数据离线保存在本机。</p>
+    </div>
+
+    <div class="card hero">
+      <div class="muted">已坚持</div>
+      <div class="ring">
+        <svg width="230" height="230" viewBox="0 0 230 230">
+          <defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#6ee7b7"/><stop offset="1" stop-color="#10b981"/></linearGradient></defs>
+          <circle cx="115" cy="115" r="100" fill="none" stroke="#252a34" stroke-width="14"/>
+          <circle id="ringBar" cx="115" cy="115" r="100" fill="none" stroke="url(#g)" stroke-width="14" stroke-linecap="round" stroke-dasharray="628.3" stroke-dashoffset="628.3" style="transition:stroke-dashoffset .6s"/>
+        </svg>
+        <div class="center">
+          <div class="days"><span id="dNum">0</span><small>天</small></div>
+          <div class="hms" id="hms">00:00:00</div>
+          <div class="next" id="nextGoal"></div>
+        </div>
+      </div>
+      <button class="btn btn-primary" id="checkBtn" onclick="openCheckin()">今日打卡</button>
+    </div>
+
+    <div class="grid3" style="margin-bottom:14px">
+      <div class="stat"><b id="sBest">0</b><span>最长记录(天)</span></div>
+      <div class="stat"><b id="sStreakCk">0</b><span>连续打卡</span></div>
+      <div class="stat"><b id="sTotal">0</b><span>累计打卡</span></div>
+    </div>
+
+    <div class="card">
+      <h2>💬 今日一句</h2>
+      <div class="quote" id="quote"></div>
+    </div>
+
+    <div class="card" id="reasonsCard">
+      <div class="row between"><h2 style="margin:0">🎯 我为什么要坚持</h2><button class="muted" onclick="openReasons()">编辑</button></div>
+      <div id="reasonsList" class="list" style="margin-top:6px"></div>
+    </div>
+
+    <button class="btn btn-danger" onclick="openRelapse()">我破戒了…（重新开始）</button>
+  </section>
+
+  <!-- 日历 -->
+  <section class="page" id="p-cal">
+    <h1>打卡日历</h1>
+    <div class="card">
+      <div class="cal-head">
+        <button onclick="shiftMonth(-1)">‹</button>
+        <b id="calTitle"></b>
+        <button onclick="shiftMonth(1)">›</button>
+      </div>
+      <div class="cal" id="cal"></div>
+      <div class="legend"><span><i style="background:var(--accent)"></i>已打卡</span><span><i style="background:var(--warn)"></i>破戒</span><span><i style="border:2px solid var(--blue)"></i>今天</span></div>
+    </div>
+    <div class="grid2" style="margin-bottom:14px">
+      <div class="stat"><b id="mOk">0</b><span>本月打卡</span></div>
+      <div class="stat"><b id="mBad">0</b><span>本月破戒</span></div>
+    </div>
+    <div class="card">
+      <h2>📝 打卡日记</h2>
+      <div class="list" id="journal"></div>
+    </div>
+  </section>
+
+  <!-- 急救 -->
+  <section class="page" id="p-sos">
+    <h1>冲动急救</h1>
+    <div class="card" style="text-align:center">
+      <div class="muted" style="margin-bottom:4px">冲动通常在 15–20 分钟内消退。跟着呼吸，先撑过这一波。</div>
+      <div class="breath"><div class="orb" id="orb"></div><div class="txt" id="breathTxt">准备好了吗<small>方块呼吸 4-4-4-4</small></div></div>
+      <div class="row" style="justify-content:center;gap:10px">
+        <button class="btn btn-primary btn-sm" id="breathBtn" onclick="toggleBreath()">开始呼吸</button>
+      </div>
+      <div class="muted" style="margin-top:10px" id="breathInfo"></div>
+    </div>
+
+    <div class="card">
+      <h2>⚡️ 立刻做一件事</h2>
+      <div id="tasks"></div>
+    </div>
+
+    <div class="card">
+      <h2>🧠 提醒自己</h2>
+      <div class="quote" id="sosQuote"></div>
+      <button class="btn btn-ghost btn-sm" style="margin-top:12px" onclick="newSosQuote()">换一句</button>
+    </div>
+
+    <div class="card">
+      <div class="row between"><div><b>挺过来了？</b><div class="muted">记录下这次胜利</div></div>
+      <button class="btn btn-primary btn-sm" onclick="winUrge()">我赢了 💪</button></div>
+      <div class="muted" style="margin-top:10px" id="urgeCount"></div>
+    </div>
+  </section>
+
+  <!-- 我的 -->
+  <section class="page" id="p-me">
+    <h1>成就与设置</h1>
+    <div class="card">
+      <h2>🏅 里程碑勋章</h2>
+      <div class="grid3" id="badges"></div>
+    </div>
+    <div class="card">
+      <h2>📉 破戒记录</h2>
+      <div class="list" id="relapses"></div>
+    </div>
+    <div class="card menu">
+      <button class="mi" onclick="openStart()"><span>修改开始时间</span><span>›</span></button>
+      <button class="mi" onclick="openReasons()"><span>编辑我的理由</span><span>›</span></button>
+      <button class="mi" onclick="exportData()"><span>导出备份</span><span>›</span></button>
+      <button class="mi" onclick="document.getElementById('importFile').click()"><span>导入备份</span><span>›</span></button>
+      <button class="mi" onclick="resetAll()"><span style="color:var(--warn)">清空所有数据</span><span>›</span></button>
+      <input type="file" id="importFile" accept="application/json,.json" hidden onchange="importData(event)">
+    </div>
+    <p class="muted" style="text-align:center;line-height:1.6">数据仅保存在本机浏览器中，不会上传。<br>建议定期导出备份。</p>
+  </section>
+</div>
+
+<!-- 底部导航 -->
+<nav class="tabbar">
+  <button class="active" data-p="home" onclick="go('home')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-8 9 8v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg>首页</button>
+  <button data-p="cal" onclick="go('cal')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/></svg>日历</button>
+  <button class="sos" data-p="sos" onclick="go('sos')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-4.5-9.5-9A5.5 5.5 0 0 1 12 6a5.5 5.5 0 0 1 9.5 6c-2.5 4.5-9.5 9-9.5 9z"/><path d="M12 10v4M10 12h4"/></svg>急救</button>
+  <button data-p="me" onclick="go('me')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="9" r="6"/><path d="M8.5 14L7 22l5-3 5 3-1.5-8"/></svg>成就</button>
+</nav>
+
+<!-- 打卡弹层 -->
+<div class="mask" id="mCheck" onclick="if(event.target===this)closeSheet(this)">
+  <div class="sheet">
+    <div class="grab"></div>
+    <h2>✅ 今日打卡</h2>
+    <label class="l">今天的状态</label>
+    <div class="chips" id="moodChips"></div>
+    <label class="l">写点什么（可选）</label>
+    <textarea id="ckNote" placeholder="今天做了什么有意义的事？有什么感受？"></textarea>
+    <button class="btn btn-primary" style="margin-top:14px" onclick="doCheckin()">完成打卡</button>
+  </div>
+</div>
+
+<!-- 破戒弹层 -->
+<div class="mask" id="mRelapse" onclick="if(event.target===this)closeSheet(this)">
+  <div class="sheet">
+    <div class="grab"></div>
+    <h2>没关系，重新出发</h2>
+    <p class="muted" style="margin-top:-4px;line-height:1.6">跌倒不可怕，重要的是找到原因。记录诱因能帮你下次提前防范。</p>
+    <label class="l">诱因是什么？</label>
+    <div class="chips red" id="trigChips"></div>
+    <label class="l">复盘一下（可选）</label>
+    <textarea id="rlNote" placeholder="当时在做什么？下次可以怎么避免？"></textarea>
+    <button class="btn btn-danger" style="margin-top:14px" onclick="doRelapse()">确认并重新计时</button>
+    <button class="btn btn-ghost" style="margin-top:10px" onclick="closeSheet(document.getElementById('mRelapse'))">取消</button>
+  </div>
+</div>
+
+<!-- 理由弹层 -->
+<div class="mask" id="mReasons" onclick="if(event.target===this)closeSheet(this)">
+  <div class="sheet">
+    <div class="grab"></div>
+    <h2>🎯 我为什么要坚持</h2>
+    <p class="muted" style="margin-top:-4px">每行一条。冲动来临时，它们会出现在首页提醒你。</p>
+    <textarea id="reasonsInput" style="min-height:160px"></textarea>
+    <button class="btn btn-primary" style="margin-top:14px" onclick="saveReasons()">保存</button>
+  </div>
+</div>
+
+<!-- 开始时间弹层 -->
+<div class="mask" id="mStart" onclick="if(event.target===this)closeSheet(this)">
+  <div class="sheet">
+    <div class="grab"></div>
+    <h2>⏱ 修改开始时间</h2>
+    <p class="muted" style="margin-top:-4px">如果你在使用本应用之前就已经开始坚持，可以在这里设置。</p>
+    <input type="datetime-local" id="startInput">
+    <button class="btn btn-primary" style="margin-top:14px" onclick="saveStart()">保存</button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+<canvas class="confetti" id="confetti"></canvas>
+
+<script>
+/* ========== 数据 ========== */
+const KEY = 'nofap-pwa-v1';
+const MILESTONES = [
+  {d:1,  e:'🌱', n:'破土'},  {d:3,  e:'🔥', n:'点燃'},  {d:7,  e:'⚔️', n:'一周勇士'},
+  {d:14, e:'🛡️', n:'两周坚守'},{d:21, e:'🧱', n:'习惯养成'},{d:30, e:'🌙', n:'满月'},
+  {d:60, e:'🦅', n:'振翅'},  {d:90, e:'🏔️', n:'重启完成'},{d:180,e:'💎', n:'半年钻石'},
+  {d:365,e:'👑', n:'王者一年'},{d:500,e:'🌌', n:'星辰'},  {d:1000,e:'🐉', n:'传说'}
+];
+const MOODS = ['😄 很好','🙂 不错','😐 一般','😣 有冲动','😫 很艰难'];
+const TRIGGERS = ['无聊','压力大','熬夜','刷手机','孤独','情绪低落','看到刺激内容','其他'];
+const TASKS = ['立刻离开当前房间','用冷水洗脸','做 20 个俯卧撑 / 深蹲','出门散步 10 分钟','给朋友发条消息','把手机放到另一个房间','喝一大杯水','读 5 页书'];
+const QUOTES = [
+  ['自律给我自由。','康德'],
+  ['能控制自己的人，才能主宰自己的命运。','佚名'],
+  ['胜人者有力，自胜者强。','老子'],
+  ['你每一次拒绝诱惑，都在投票给你想成为的那个人。','詹姆斯·克利尔'],
+  ['不积跬步，无以至千里。','荀子'],
+  ['痛苦是暂时的，放弃却是永远的。','佚名'],
+  ['我们反复做的事情塑造了我们。卓越不是一种行为，而是一种习惯。','亚里士多德'],
+  ['冲动像海浪，它会涨起，也一定会退去。你只需要冲浪，不必被它淹没。','正念练习'],
+  ['今天的忍耐，是明天的底气。','佚名'],
+  ['欲望是一时的，后悔却很长。','佚名'],
+  ['千里之堤，溃于蚁穴。守住每一个小时。','韩非子（化用）'],
+  ['静以修身，俭以养德。','诸葛亮'],
+  ['不要用一时的快感，交换长久的精力与专注。','佚名'],
+  ['真正的强大，是能对自己说“不”。','佚名'],
+  ['把精力用在让你变得更好的事情上。','佚名'],
+  ['种一棵树最好的时间是十年前，其次是现在。','谚语'],
+];
+
+function load(){
+  try{ const s = JSON.parse(localStorage.getItem(KEY)); if(s && s.startTime) return s; }catch(e){}
+  return {startTime:Date.now(), best:0, checkins:{}, relapses:[], urges:0,
+    reasons:['拥有更充沛的精力和专注力','成为一个说到做到的人','把时间留给真正重要的人和事']};
+}
+let S = load();
+function save(){ try{ localStorage.setItem(KEY, JSON.stringify(S)); }catch(e){ toast('保存失败：存储不可用'); } }
+
+/* ========== 工具 ========== */
+const $ = id => document.getElementById(id);
+const DAY = 86400000;
+const pad = n => String(n).padStart(2,'0');
+const dkey = d => { d = new Date(d); return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`; };
+const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fmtDate = t => { const d=new Date(t); return `${d.getMonth()+1}月${d.getDate()}日 ${pad(d.getHours())}:${pad(d.getMinutes())}`; };
+function toast(msg){ const t=$('toast'); t.textContent=msg; t.classList.add('show'); clearTimeout(t._h); t._h=setTimeout(()=>t.classList.remove('show'),2000); }
+function streakMs(){ return Math.max(0, Date.now() - S.startTime); }
+function streakDays(){ return Math.floor(streakMs()/DAY); }
+function bestDays(){ return Math.floor(Math.max(S.best, streakMs())/DAY); }
+function daySeed(){ const d=new Date(); return d.getFullYear()*400 + d.getMonth()*32 + d.getDate(); }
+
+function checkinStreak(){
+  let n=0, d=new Date();
+  if(!S.checkins[dkey(d)]) d.setDate(d.getDate()-1); // 今天还没打卡时从昨天算
+  while(S.checkins[dkey(d)]){ n++; d.setDate(d.getDate()-1); }
+  return n;
+}
+function relapseDays(){ const set=new Set(); S.relapses.forEach(r=>set.add(dkey(r.t))); return set; }
+
+/* ========== 首页 ========== */
+let lastDays = -1;
+function tick(){
+  const ms = streakMs(), days = Math.floor(ms/DAY), rem = ms%DAY;
+  $('dNum').textContent = days;
+  $('hms').textContent = `${pad(Math.floor(rem/3600000))}:${pad(Math.floor(rem%3600000/60000))}:${pad(Math.floor(rem%60000/1000))}`;
+  const next = MILESTONES.find(m=>m.d>days) || {d:days+1,n:''};
+  const prev = [...MILESTONES].reverse().find(m=>m.d<=days);
+  const from = prev ? prev.d*DAY : 0, to = next.d*DAY;
+  const p = Math.min(1, (ms-from)/(to-from));
+  $('ringBar').style.strokeDashoffset = 628.3*(1-p);
+  $('nextGoal').textContent = `距「${next.n || next.d+'天'}」还有 ${Math.ceil((to-ms)/DAY)} 天`;
+  if(lastDays !== -1 && days > lastDays){
+    const m = MILESTONES.find(m=>m.d===days);
+    if(m){ toast(`解锁勋章 ${m.e} ${m.n}！`); confetti(); }
+    renderStats(); renderBadges();
+  }
+  lastDays = days;
+}
+function renderStats(){
+  const today = S.checkins[dkey(Date.now())];
+  const b = $('checkBtn');
+  b.disabled = !!today;
+  b.textContent = today ? `今日已打卡 ${today.mood ? today.mood.split(' ')[0] : '✓'}` : '今日打卡';
+  $('sBest').textContent = bestDays();
+  $('sStreakCk').textContent = checkinStreak();
+  $('sTotal').textContent = Object.keys(S.checkins).length;
+  const d = new Date();
+  $('todayStr').textContent = `${d.getMonth()+1}月${d.getDate()}日 周${'日一二三四五六'[d.getDay()]}`;
+  const q = QUOTES[daySeed()%QUOTES.length];
+  $('quote').innerHTML = `${esc(q[0])}<span class="by">—— ${esc(q[1])}</span>`;
+  $('reasonsList').innerHTML = S.reasons.length
+    ? S.reasons.map((r,i)=>`<div class="item">${i+1}. ${esc(r)}</div>`).join('')
+    : `<div class="item muted">还没有添加理由，点“编辑”写下你的动力。</div>`;
+}
+
+/* 打卡 */
+let selMood = null, selTrig = null;
+function chips(el, arr, getSel, setSel){
+  el.innerHTML = arr.map(x=>`<button class="chip${getSel()===x?' on':''}">${esc(x)}</button>`).join('');
+  [...el.children].forEach((c,i)=>c.onclick=()=>{ setSel(getSel()===arr[i]?null:arr[i]); chips(el,arr,getSel,setSel); });
+}
+function openSheet(id){ $(id).classList.add('show'); }
+function closeSheet(el){ el.classList.remove('show'); }
+function openCheckin(){
+  if(S.checkins[dkey(Date.now())]) return;
+  selMood = MOODS[1]; $('ckNote').value='';
+  chips($('moodChips'), MOODS, ()=>selMood, v=>selMood=v);
+  openSheet('mCheck');
+}
+function doCheckin(){
+  S.checkins[dkey(Date.now())] = {t:Date.now(), mood:selMood, note:$('ckNote').value.trim()};
+  save(); closeSheet($('mCheck')); renderAll();
+  toast(`打卡成功！连续打卡 ${checkinStreak()} 天`); confetti();
+}
+
+/* 破戒 */
+function openRelapse(){
+  selTrig=null; $('rlNote').value='';
+  chips($('trigChips'), TRIGGERS, ()=>selTrig, v=>selTrig=v);
+  openSheet('mRelapse');
+}
+function doRelapse(){
+  const ms = streakMs();
+  S.best = Math.max(S.best, ms);
+  S.relapses.unshift({t:Date.now(), trigger:selTrig, note:$('rlNote').value.trim(), streak:ms});
+  S.startTime = Date.now();
+  save(); closeSheet($('mRelapse')); lastDays=-1; renderAll(); tick();
+  toast('已重新开始计时，加油！');
+}
+
+/* 理由 / 开始时间 */
+function openReasons(){ $('reasonsInput').value = S.reasons.join('\n'); openSheet('mReasons'); }
+function saveReasons(){ S.reasons = $('reasonsInput').value.split('\n').map(s=>s.trim()).filter(Boolean); save(); closeSheet($('mReasons')); renderStats(); toast('已保存'); }
+function openStart(){
+  const d = new Date(S.startTime - new Date().getTimezoneOffset()*60000);
+  $('startInput').value = d.toISOString().slice(0,16);
+  $('startInput').max = new Date(Date.now()-new Date().getTimezoneOffset()*60000).toISOString().slice(0,16);
+  openSheet('mStart');
+}
+function saveStart(){
+  const v = $('startInput').value; if(!v) return;
+  const t = new Date(v).getTime();
+  if(isNaN(t) || t > Date.now()){ toast('开始时间不能晚于现在'); return; }
+  S.startTime = t; save(); closeSheet($('mStart')); lastDays=-1; renderAll(); tick(); toast('开始时间已更新');
+}
+
+/* ========== 日历 ========== */
+let calY, calM;
+(function(){ const d=new Date(); calY=d.getFullYear(); calM=d.getMonth(); })();
+function shiftMonth(n){ calM+=n; if(calM<0){calM=11;calY--;} if(calM>11){calM=0;calY++;} renderCal(); }
+function renderCal(){
+  $('calTitle').textContent = `${calY}年${calM+1}月`;
+  const first = new Date(calY,calM,1).getDay(), total = new Date(calY,calM+1,0).getDate();
+  const bad = relapseDays(), todayK = dkey(Date.now()), now = Date.now();
+  let h = '日一二三四五六'.split('').map(w=>`<div class="wd">${w}</div>`).join('');
+  for(let i=0;i<first;i++) h += '<div class="d empty"></div>';
+  let ok=0, nb=0;
+  for(let d=1; d<=total; d++){
+    const k = `${calY}-${pad(calM+1)}-${pad(d)}`, ck = S.checkins[k];
+    let cls = 'd';
+    if(bad.has(k)){ cls+=' bad'; nb++; } else if(ck){ cls+=' ok'; }
+    if(ck) ok++;
+    if(k===todayK) cls+=' today';
+    if(new Date(calY,calM,d).getTime() > now) cls+=' future';
+    const mark = bad.has(k) ? '✕' : ck ? (ck.mood ? ck.mood.split(' ')[0] : '✓') : '';
+    h += `<div class="${cls}">${d}${mark?`<span class="m">${mark}</span>`:''}</div>`;
+  }
+  $('cal').innerHTML = h; $('mOk').textContent = ok; $('mBad').textContent = nb;
+
+  const entries = Object.entries(S.checkins).sort((a,b)=>b[0].localeCompare(a[0])).slice(0,30);
+  $('journal').innerHTML = entries.length ? entries.map(([k,v])=>
+    `<div class="item"><div class="row between"><b>${k.slice(5).replace('-','月')}日</b><span class="tag">${esc(v.mood||'已打卡')}</span></div>${v.note?`<div class="muted" style="margin-top:6px;line-height:1.6;-webkit-user-select:text;user-select:text">${esc(v.note)}</div>`:''}</div>`
+  ).join('') : '<div class="item muted">还没有打卡记录，去首页完成第一次打卡吧。</div>';
+}
+
+/* ========== 急救 ========== */
+const PHASES = [['吸气',1],['屏息',1],['呼气',.55],['屏息',.55]];
+let breathing = null, bStart = 0;
+function toggleBreath(){
+  if(breathing){ stopBreath(); return; }
+  bStart = Date.now(); let i = 0, sec = 4;
+  const orb=$('orb'), txt=$('breathTxt');
+  const step = () => {
+    const [name, scale] = PHASES[i%4];
+    orb.style.transform = `scale(${scale})`;
+    sec = 4; txt.innerHTML = `${name}<small>${sec}</small>`;
+  };
+  step();
+  breathing = setInterval(()=>{
+    sec--;
+    if(sec<=0){ i++; step(); } else { txt.innerHTML = `${PHASES[i%4][0]}<small>${sec}</small>`; }
+    const el = Math.floor((Date.now()-bStart)/1000);
+    $('breathInfo').textContent = `已坚持 ${Math.floor(el/60)} 分 ${pad(el%60)} 秒 · 第 ${Math.floor(i/4)+1} 轮`;
+  },1000);
+  $('breathBtn').textContent = '停止';
+}
+function stopBreath(){
+  clearInterval(breathing); breathing=null;
+  $('orb').style.transform='scale(.55)';
+  $('breathTxt').innerHTML='做得很好<small>感觉好些了吗？</small>';
+  $('breathBtn').textContent='再来一次';
+}
+let doneTasks = new Set();
+function renderTasks(){
+  $('tasks').innerHTML = TASKS.map((t,i)=>`<div class="task${doneTasks.has(i)?' done':''}" onclick="toggleTask(${i})"><span class="ck">${doneTasks.has(i)?'✓':''}</span><span class="t">${esc(t)}</span></div>`).join('');
+}
+function toggleTask(i){ doneTasks.has(i)?doneTasks.delete(i):doneTasks.add(i); renderTasks(); }
+let sosIdx = 0;
+function newSosQuote(){
+  const pool = [...S.reasons.map(r=>[r,'我的理由']), ...QUOTES];
+  sosIdx = (sosIdx + 1 + Math.floor(Math.random()*(pool.length-1))) % pool.length;
+  const q = pool[sosIdx];
+  $('sosQuote').innerHTML = `${esc(q[0])}<span class="by">—— ${esc(q[1])}</span>`;
+}
+function winUrge(){ S.urges=(S.urges||0)+1; save(); renderUrge(); toast('太棒了！又一次战胜了冲动 🏆'); confetti(); doneTasks.clear(); renderTasks(); if(breathing) stopBreath(); }
+function renderUrge(){ $('urgeCount').textContent = `累计战胜冲动 ${S.urges||0} 次`; }
+
+/* ========== 成就 ========== */
+function renderBadges(){
+  const best = bestDays();
+  $('badges').innerHTML = MILESTONES.map(m=>`<div class="badge${best>=m.d?' on':''}"><div class="e">${m.e}</div><div class="n">${m.n}</div><div class="r">${m.d} 天</div></div>`).join('');
+  $('relapses').innerHTML = S.relapses.length ? S.relapses.slice(0,50).map(r=>
+    `<div class="item"><div class="row between"><b>${fmtDate(r.t)}</b><span class="muted">坚持了 ${(r.streak/DAY).toFixed(1)} 天</span></div>
+     <div style="margin-top:6px">${r.trigger?`<span class="tag">${esc(r.trigger)}</span>`:''}${r.note?`<span class="muted">${esc(r.note)}</span>`:''}</div></div>`
+  ).join('') + triggerSummary() : '<div class="item muted">暂无破戒记录，继续保持 💪</div>';
+}
+function triggerSummary(){
+  const c = {}; S.relapses.forEach(r=>{ if(r.trigger) c[r.trigger]=(c[r.trigger]||0)+1; });
+  const top = Object.entries(c).sort((a,b)=>b[1]-a[1])[0];
+  return top ? `<div class="item muted">⚠️ 你最常见的诱因是「${esc(top[0])}」（${top[1]} 次），试着提前为它做好准备。</div>` : '';
+}
+
+/* 备份 */
+function exportData(){
+  const blob = new Blob([JSON.stringify(S,null,2)],{type:'application/json'});
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+  a.download = `自律打卡备份-${dkey(Date.now())}.json`; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(a.href), 1000); toast('备份已导出');
+}
+function importData(e){
+  const f = e.target.files[0]; if(!f) return;
+  const r = new FileReader();
+  r.onload = () => {
+    try{
+      const d = JSON.parse(r.result);
+      if(!d || typeof d.startTime !== 'number') throw 0;
+      S = Object.assign(load(), d, {checkins:d.checkins||{}, relapses:d.relapses||[], reasons:d.reasons||[]});
+      save(); lastDays=-1; renderAll(); tick(); toast('导入成功');
+    }catch(err){ toast('文件格式不正确'); }
+    e.target.value='';
+  };
+  r.readAsText(f);
+}
+function resetAll(){
+  if(!confirm('确定清空所有数据吗？此操作不可撤销。')) return;
+  localStorage.removeItem(KEY); S = load(); save(); lastDays=-1; renderAll(); tick(); toast('已清空');
+}
+
+/* ========== 导航 ========== */
+function go(p){
+  document.querySelectorAll('.page').forEach(x=>x.classList.toggle('active', x.id==='p-'+p));
+  document.querySelectorAll('.tabbar button').forEach(b=>b.classList.toggle('active', b.dataset.p===p));
+  if(p==='cal') renderCal();
+  if(p==='me') renderBadges();
+  window.scrollTo(0,0);
+}
+function renderAll(){ renderStats(); renderCal(); renderBadges(); renderTasks(); renderUrge(); }
+
+/* 安装提示：iOS Safari 且未以独立模式运行 */
+function hideInstall(){ $('installTip').classList.remove('show'); try{localStorage.setItem(KEY+'-hideInstall','1');}catch(e){} }
+(function(){
+  const ios = /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform==='MacIntel' && navigator.maxTouchPoints>1);
+  const standalone = navigator.standalone || matchMedia('(display-mode: standalone)').matches;
+  let hidden=false; try{hidden=localStorage.getItem(KEY+'-hideInstall');}catch(e){}
+  if(ios && !standalone && !hidden) $('installTip').classList.add('show');
+})();
+
+/* 彩带 */
+function confetti(){
+  const c=$('confetti'), x=c.getContext('2d'), dpr=devicePixelRatio||1;
+  c.width=innerWidth*dpr; c.height=innerHeight*dpr; x.scale(dpr,dpr);
+  const cols=['#34d399','#fbbf24','#60a5fa','#f472b6','#a78bfa'];
+  const ps=Array.from({length:90},()=>({x:innerWidth/2,y:innerHeight*.35,vx:(Math.random()-.5)*12,vy:Math.random()*-11-3,s:Math.random()*6+4,c:cols[Math.random()*5|0],r:Math.random()*6,vr:(Math.random()-.5)*.4}));
+  let f=0;
+  (function loop(){
+    x.clearRect(0,0,innerWidth,innerHeight);
+    ps.forEach(p=>{p.vy+=.35;p.x+=p.vx;p.y+=p.vy;p.vx*=.99;p.r+=p.vr;x.save();x.translate(p.x,p.y);x.rotate(p.r);x.fillStyle=p.c;x.fillRect(-p.s/2,-p.s/4,p.s,p.s/2);x.restore();});
+    if(++f<110) requestAnimationFrame(loop); else x.clearRect(0,0,innerWidth,innerHeight);
+  })();
+}
+
+/* 启动 */
+save(); renderAll(); newSosQuote(); tick();
+setInterval(tick, 1000);
+document.addEventListener('visibilitychange', ()=>{ if(!document.hidden){ renderAll(); tick(); } });
+if('serviceWorker' in navigator && location.protocol !== 'file:'){
+  navigator.serviceWorker.register('sw.js').catch(()=>{});
+}
+</script>
+</body>
+</html>
